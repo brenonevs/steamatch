@@ -53,7 +53,7 @@ SteamMatch é uma ferramenta Python que permite analisar e comparar perfis do St
 ### Instalação
 1. Clone o repositório
 ```bash
-git clone https://github.com/seu-usuario/steamatch.git
+git clone https://github.com/brenonevs/steamatch.git
 cd steamatch
 ```
 
