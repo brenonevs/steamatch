@@ -126,7 +126,7 @@ user1.compare_games_with(user2, num_games=15)
 Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE.md](LICENSE.md) para detalhes.
 
 ## 👨‍💻 Autor
-Seu Nome - [brenonevs](https://github.com/brenonevs)
+Breno Braga Neves - [brenonevs](https://github.com/brenonevs)
 
 ## 🙏 Agradecimentos
 - Steam API

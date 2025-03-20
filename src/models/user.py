@@ -25,7 +25,12 @@ class SteamUser:
         elif steam_id and not username:
             print(f"🔍 Buscando nome de usuário para Steam ID: {steam_id}")
             self._username = self.steam_utils.get_user_details(steam_id)["player"]["personaname"]
-            
+
+    @property
+    def friends_list(self) -> str:
+        """Retorna a lista de amigos do usuário."""
+        return self.steam_utils.get_friends_list(self._steam_id)
+
     @property
     def steam_id(self) -> str:
         """Retorna o Steam ID do usuário."""

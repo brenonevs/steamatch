@@ -56,6 +56,20 @@ class SteamUtils:
             return wrapper
         return decorator
     
+    @_handle_api_error("busca de lista de amigos")
+    def get_friends_list(self, steamid: Union[str, int], enriched: bool = True) -> List[Dict]:
+        """Obtém a lista de amigos do usuário.
+
+        Args:
+            steamid: ID do usuário no Steam
+            enriched: Se True, inclui detalhes dos amigos
+        
+        Returns:
+            List[Dict]: Lista de amigos do usuário
+        
+        """
+        return self.steam.users.get_user_friends_list(str(steamid), enriched)
+    
     @_handle_api_error("busca de nome de usuário")
     def get_username(self, steamid: Union[str, int]) -> str:
         """Obtém o nome de usuário a partir do Steam ID.
