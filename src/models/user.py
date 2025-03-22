@@ -1,5 +1,5 @@
 from typing import List, Dict
-from api import SteamUtils, SteamGameDiscoveryService
+from api import SteamService
 
 class SteamUser:
     """
@@ -13,7 +13,7 @@ class SteamUser:
             username: Nome de usuário do Steam
             steam_id: ID do Steam (opcional se username for fornecido)
         """
-        self.steam_utils = SteamUtils()
+        self.steam_utils = SteamService()
         self._username = username
         self._steam_id = steam_id
         self._profile_details = None
@@ -26,6 +26,24 @@ class SteamUser:
             print(f"🔍 Buscando nome de usuário para Steam ID: {steam_id}")
             self._username = self.steam_utils.get_user_details(steam_id)["player"]["personaname"]
 
+    def __str__(self) -> str:
+        """Retorna uma representação em string do usuário."""
+        return f"{self._username} (ID: {self._steam_id})"
+    
+    def __repr__(self) -> str:
+        """Retorna uma representação oficial do objeto."""
+        return f"SteamUser(username={self._username}, steam_id={self._steam_id})"
+
+    @property
+    def badges(self) -> List[Dict]:
+        """Retorna as conquistas do usuário."""
+        return self.steam_utils.get_user_badges(self._steam_id)
+
+    @property
+    def recently_played_games(self) -> List[Dict]:
+        """Retorna os últimos jogos jogados pelo usuário."""
+        return self.steam_utils.get_recently_played_games(self._steam_id)
+    
     @property
     def friends_list(self) -> str:
         """Retorna a lista de amigos do usuário."""
@@ -60,7 +78,4 @@ class SteamUser:
             other_user: Outro usuário do Steam para comparação
             num_games: Número de jogos a serem exibidos na comparação
         """
-        discovery_service = SteamGameDiscoveryService()
-        discovery_service.print_common_games(self.steam_id, other_user.steam_id, num_games)
-    
-    
+        return self.steam_utils.print_common_games(self._steam_id, other_user._steam_id, num_games)

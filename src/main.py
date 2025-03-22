@@ -1,4 +1,5 @@
 from models.user import SteamUser
+from models.game import SteamGame
 
 def main():
     try:
@@ -25,8 +26,23 @@ def main():
         # print(f"Jogos do usuário 2: {user2.get_games}")
 
         # Obtendo lista de amigos
-        print(f"Amigos do usuário 1: {user1.friends_list}")
-        print(f"Amigos do usuário 2: {user2.friends_list}")
+        # print(f"Amigos do usuário 1: {user1.friends_list}")
+        # print(f"Amigos do usuário 2: {user2.friends_list}")
+
+        # Obtendo jogos recentes
+        # print(f"Jogos recentes do usuário 1: {user1.recently_played_games}")
+        # print(f"Jogos recentes do usuário 2: {user2.recently_played_games}")
+
+        # Obtendo conquistas
+        # print(f"Conquistas do usuário 1: {user1.badges}")
+        # print(f"Conquistas do usuário 2: {user2.badges}")
+
+        # Comparando jogos
+        # user1.compare_games_with(user2, num_games=30)
+
+        game = SteamGame("Metro Exodus")
+        print(game.get_screenshots())
+
         
     except Exception as e:
         print(f"\n❌ Erro: {str(e)}")
