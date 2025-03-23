@@ -1,7 +1,7 @@
 import os
 import requests
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import threading
 from functools import partial
 import concurrent.futures
@@ -303,12 +303,91 @@ class SteamMarketRecommender:
         self.api_key = STEAM_API_KEY
         self.popular_games: List[GameInfo] = []
         
-    def fetch_popular_games(self, limit: int = 100) -> None:
-        """Busca jogos populares da Steam com melhor tratamento de erros e rate limiting."""
-        print("\n📊 Buscando jogos populares da Steam...")
+    def fetch_game_details(self, game: Dict, max_retries: int = 3) -> Optional[GameInfo]:
+        """
+        Fetches detailed information for a single game with retry mechanism.
+        
+        Args:
+            game: Basic game information dictionary
+            max_retries: Maximum number of retry attempts
+            
+        Returns:
+            GameInfo object if successful, None otherwise
+        """
+        for attempt in range(max_retries):
+            try:
+                app_details_url = "https://store.steampowered.com/api/appdetails"
+                params = {
+                    'appids': game['appid'],
+                    'cc': 'us',
+                    'l': 'en',
+                    'filters': 'categories,genres,basic'
+                }
+                
+                details_response = requests.get(app_details_url, params=params, timeout=10)
+                
+                if details_response.status_code != 200:
+                    raise requests.RequestException(f"HTTP {details_response.status_code}")
+                
+                details_data = details_response.json()
+                app_id = str(game['appid'])
+                
+                if not details_data or not details_data.get(app_id, {}).get('success'):
+                    raise ValueError("Invalid game data")
+                
+                game_data = details_data[app_id]['data']
+                
+                # Process categories and genres
+                categories = [
+                    {'description': cat.get('description', '')}
+                    for cat in game_data.get('categories', [])
+                    if cat.get('description')
+                ]
+                
+                genres = [
+                    {'description': genre.get('description', '')}
+                    for genre in game_data.get('genres', [])
+                    if genre.get('description')
+                ]
+                
+                # Get SteamSpy data
+                try:
+                    steamspy_data = self.get_steamspy_info(game['appid'])
+                    steamspy_tags = [
+                        {'description': tag}
+                        for tag in steamspy_data.get('tags', {}).keys()
+                    ]
+                    categories.extend(steamspy_tags)
+                except:
+                    pass
+                
+                return GameInfo(
+                    appid=game['appid'],
+                    name=game_data.get('name', f"Game {game['appid']}"),
+                    tags=categories,
+                    genres=genres
+                )
+                
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    print(f"\n⚠️ Failed to fetch game {game['appid']}: {str(e)}")
+                    return None
+                time.sleep(2 * (attempt + 1))  # Exponential backoff
+                
+        return None
+
+    def fetch_popular_games_parallel(self, limit: int = 100, max_workers: int = 10) -> None:
+        """
+        Fetches popular games using parallel processing for better performance.
+        
+        Args:
+            limit: Maximum number of games to fetch
+            max_workers: Maximum number of concurrent threads
+        """
+        print("\n📊 Fetching popular Steam games with parallel processing...")
         
         try:
-            # Busca jogos populares
+            # Get initial popular games list
             url = "https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/"
             params = {'key': self.api_key}
             
@@ -316,125 +395,97 @@ class SteamMarketRecommender:
             data = response.json()
             
             popular_games = data['response']['ranks'][:limit]
-            print(f"\n🔄 Coletando detalhes de {len(popular_games)} jogos populares...")
+            total_games = len(popular_games)
             
+            print(f"\n🔄 Collecting details for {total_games} popular games using {max_workers} threads...")
+            
+            # Thread-safe counters
+            processed = 0
+            successful = 0
+            failed = 0
+            lock = threading.Lock()
+            
+            def update_progress(success: bool):
+                nonlocal processed, successful, failed
+                with lock:
+                    processed += 1
+                    if success:
+                        successful += 1
+                    else:
+                        failed += 1
+                    progress = (processed / total_games) * 100
+                    print(f"\r⏳ Progress: {progress:.1f}% (Success: {successful}, Failed: {failed})", end="")
+            
+            # Process games in parallel
             self.popular_games = []
-            failed_games = []
+            start_time = time.time()
             
-            for rank, game in enumerate(popular_games, 1):
-                try:
-                    # Busca detalhes do jogo
-                    app_details_url = f"https://store.steampowered.com/api/appdetails"
-                    params = {
-                        'appids': game['appid'],
-                        'cc': 'us',
-                        'l': 'en',
-                        'filters': 'categories,genres,basic'
-                    }
-                    
-                    # Adiciona delay entre requisições
-                    time.sleep(1.5)  # Aumentado para 1.5 segundos
-                    
-                    details_response = requests.get(app_details_url, params=params, timeout=10)
-                    
-                    # Verifica se a resposta é válida
-                    if details_response.status_code != 200:
-                        print(f"\n⚠️ Erro HTTP {details_response.status_code} para jogo {game['appid']}")
-                        failed_games.append(game['appid'])
-                        continue
-                    
-                    details_data = details_response.json()
-                    
-                    app_id = str(game['appid'])
-                    if not details_data or not details_data.get(app_id, {}).get('success'):
-                        print(f"\n⚠️ Dados inválidos para jogo {game['appid']}")
-                        failed_games.append(game['appid'])
-                        continue
-                    
-                    game_data = details_data[app_id]['data']
-                    
-                    # Extrai e formata tags e gêneros com verificações
-                    categories = []
-                    genres = []
-                    
-                    if 'categories' in game_data:
-                        categories = [
-                            {'description': cat.get('description', '')}
-                            for cat in game_data['categories']
-                            if cat.get('description')
-                        ]
-                    
-                    if 'genres' in game_data:
-                        genres = [
-                            {'description': genre.get('description', '')}
-                            for genre in game_data['genres']
-                            if genre.get('description')
-                        ]
-                    
-                    # Tenta buscar dados do SteamSpy, mas não falha se não conseguir
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_game = {
+                    executor.submit(self.fetch_game_details, game): game
+                    for game in popular_games
+                }
+                
+                for future in concurrent.futures.as_completed(future_to_game):
                     try:
-                        steamspy_data = self.get_steamspy_info(game['appid'])
-                        steamspy_tags = [
-                            {'description': tag}
-                            for tag in steamspy_data.get('tags', {}).keys()
-                        ]
-                        categories.extend(steamspy_tags)
-                    except:
-                        pass
-                    
-                    # Cria o objeto do jogo
-                    game_info = GameInfo(
-                        appid=game['appid'],
-                        name=game_data.get('name', f"Jogo {game['appid']}"),
-                        tags=categories,
-                        genres=genres
-                    )
-                    
-                    self.popular_games.append(game_info)
-                    
-                    # Atualiza progresso
-                    print(f"\r⏳ Progresso: {(rank/len(popular_games))*100:.1f}% "
-                          f"(Sucesso: {len(self.popular_games)}, Falhas: {len(failed_games)})", end="")
-                    
-                except requests.exceptions.RequestException as e:
-                    print(f"\n⚠️ Erro de rede ao buscar jogo {game['appid']}: {str(e)}")
-                    failed_games.append(game['appid'])
-                    time.sleep(2)  # Espera mais tempo em caso de erro
-                    continue
-                    
-                except Exception as e:
-                    print(f"\n⚠️ Erro ao processar jogo {game['appid']}: {str(e)}")
-                    failed_games.append(game['appid'])
-                    continue
+                        game_info = future.result()
+                        if game_info:
+                            self.popular_games.append(game_info)
+                            update_progress(True)
+                        else:
+                            update_progress(False)
+                    except Exception as e:
+                        print(f"\n❌ Error processing game: {str(e)}")
+                        update_progress(False)
             
-            print(f"\n\n✅ Processo concluído:")
-            print(f"   ✓ {len(self.popular_games)} jogos coletados com sucesso")
-            print(f"   ✗ {len(failed_games)} jogos falharam")
+            execution_time = time.time() - start_time
             
-            if failed_games:
-                print("\n⚠️ IDs dos jogos que falharam:")
-                print(", ".join(map(str, failed_games)))
+            print(f"\n\n✅ Process completed in {execution_time:.2f} seconds:")
+            print(f"   ✓ {successful} games collected successfully")
+            print(f"   ✗ {failed} games failed")
             
         except Exception as e:
-            print(f"\n❌ Erro fatal ao buscar jogos populares: {str(e)}")
+            print(f"\n❌ Fatal error fetching popular games: {str(e)}")
             raise
 
-    @staticmethod
-    def get_steamspy_info(appid: int) -> Dict:
-        """Obtém informações do SteamSpy com retry."""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                url = f"https://steamspy.com/api.php?request=appdetails&appid={appid}"
-                response = requests.get(url, timeout=5)
-                if response.status_code == 200:
-                    return response.json()
-                time.sleep(1)
-            except:
-                if attempt < max_retries - 1:
-                    time.sleep(2)
-                continue
-        return {}
+    def suggest_games(self, game_tags: List[str] = None, game_genre: str = None, 
+                     popular_games_sample_size: int = 80, results_limit: int = 10,
+                     max_workers: int = 10) -> List[GameInfo]:
+        """
+        Finds similar games using parallel processing for faster results.
+        
+        Args:
+            game_tags: Target game tags for similarity matching (optional)
+            game_genre: Target game genre for similarity matching (optional)
+            popular_games_sample_size: Number of popular games to analyze
+            results_limit: Maximum number of similar games to return
+            max_workers: Maximum number of concurrent threads
+            
+        Returns:
+            List of similar games sorted by relevance
+        """
+        print("\n🎮 Starting parallel similarity-based game search...")
+        
+        # Collect popular games data using parallel processing
+        self.fetch_popular_games_parallel(
+            limit=popular_games_sample_size,
+            max_workers=max_workers
+        )
+        
+        # Find games matching criteria
+        if game_tags:
+            return self.recommend_by_tags(
+                target_tags=game_tags,
+                max_recommendations=results_limit
+            )
+        
+        if game_genre:
+            return self.recommend_by_genre(
+                target_genre=game_genre,
+                max_recommendations=results_limit
+            )
+            
+        raise ValueError("Search criteria required: Please provide either game tags or genre")
 
     def recommend_by_tags(self, target_tags: List[str], max_recommendations: int = 10) -> List[GameInfo]:
         """Recomenda jogos por tags com melhor tratamento."""
@@ -521,36 +572,19 @@ class SteamMarketRecommender:
             
             print("   " + "-" * 40)
 
-    def suggest_games(self, game_tags: List[str] = None, game_genre: str = None, popular_games_sample_size: int = 80, results_limit: int = 10) -> List[GameInfo]:
-        """
-        Finds similar games based on specified tags or genre from Steam's popular games.
-        
-        Args:
-            game_tags: Target game tags for similarity matching (optional)
-            game_genre: Target game genre for similarity matching (optional)
-            popular_games_sample_size: Number of popular games to analyze
-            results_limit: Maximum number of similar games to return
-            
-        Returns:
-            List of similar games sorted by relevance
-        """
-        print("\n🎮 Starting similarity-based game search...")
-        
-        # Collect current popular games data
-        self.fetch_popular_games(limit=popular_games_sample_size)
-        
-        # Find games matching specified tags
-        if game_tags:
-            return self.recommend_by_tags(
-                target_tags=game_tags,
-                max_recommendations=results_limit
-            )
-        
-        # Find games matching specified genre
-        if game_genre:
-            return self.recommend_by_genre(
-                target_genre=game_genre,
-                max_recommendations=results_limit
-            )
-            
-        raise ValueError("Search criteria required: Please provide either game tags or genre")
+    @staticmethod
+    def get_steamspy_info(appid: int) -> Dict:
+        """Obtém informações do SteamSpy com retry."""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                url = f"https://steamspy.com/api.php?request=appdetails&appid={appid}"
+                response = requests.get(url, timeout=5)
+                if response.status_code == 200:
+                    return response.json()
+                time.sleep(1)
+            except:
+                if attempt < max_retries - 1:
+                    time.sleep(2)
+                continue
+        return {}

@@ -44,7 +44,7 @@ def main():
         # Recomendação de jogos do mercado
 
         market_recommender = SteamMarketRecommender()
-        market_recommender.suggest_games(game_tags=["Anime"], game_genre="RPG", popular_games_sample_size=30, results_limit=10)
+        market_recommender.suggest_games(game_tags=["Anime"], game_genre="RPG", popular_games_sample_size=500, results_limit=10)
 
         # Recomendação de jogos da Steam na biblioteca do usuário
         steam_recommender = SteamGameRecommender(steam_id=user1.steam_id)
