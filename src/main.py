@@ -1,5 +1,6 @@
 from models.user import SteamUser
 from models.game import SteamGame
+from services.games_recommender import SteamGameRecommender, SteamMarketRecommender
 
 def main():
     try:
@@ -40,10 +41,17 @@ def main():
         # Comparando jogos
         # user1.compare_games_with(user2, num_games=30)
 
-       
-        print(user1.steam_id)
+        # Recomendação de jogos do mercado
+
+        market_recommender = SteamMarketRecommender()
+        market_recommender.suggest_games(game_tags=["Anime"], game_genre="RPG", popular_games_sample_size=30, results_limit=10)
+
+        # Recomendação de jogos da Steam na biblioteca do usuário
+        steam_recommender = SteamGameRecommender(steam_id=user1.steam_id)
+        steam_recommender.suggest_games(top_played_games_limit=15, recommendation_limit=10)
 
         
+
     except Exception as e:
         print(f"\n❌ Erro: {str(e)}")
     finally:
