@@ -1,6 +1,5 @@
 from typing import List, Dict, Optional
-from api import SteamService
-
+from utils.utils import SteamService
 
 class SteamGame:
     """

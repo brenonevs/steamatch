@@ -1,5 +1,5 @@
 from typing import List, Dict
-from api import SteamService
+from utils.utils import SteamService
 
 class SteamUser:
     """

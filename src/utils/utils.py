@@ -1,7 +1,5 @@
 import os
-import json
-from bs4 import BeautifulSoup
-from typing import Union, Dict, List, Optional
+from typing import Union, Dict, List
 from functools import lru_cache
 from steam_web_api import Steam
 

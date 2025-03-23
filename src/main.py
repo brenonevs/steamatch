@@ -40,8 +40,8 @@ def main():
         # Comparando jogos
         # user1.compare_games_with(user2, num_games=30)
 
-        game = SteamGame("Metro Exodus")
-        print(game.get_screenshots())
+       
+        print(user1.steam_id)
 
         
     except Exception as e:
